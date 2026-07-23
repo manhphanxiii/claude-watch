@@ -1,6 +1,6 @@
 {
   "name": "claude-watch",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Reliability supervisor for unattended (cron/CI/Routines) Claude Code and Agent SDK runs: stall/hang timeout, silent-failure detectors, webhook/Slack alerts.",
   "type": "commonjs",
   "bin": {
