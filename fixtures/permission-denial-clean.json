@@ -1,0 +1,36 @@
+[
+  {
+    "type": "assistant",
+    "message": {
+      "content": [
+        { "type": "text", "text": "I'll update the config file now." },
+        { "type": "tool_use", "name": "Edit", "input": { "file_path": "/etc/app/config.yml" } }
+      ]
+    }
+  },
+  {
+    "type": "user",
+    "message": {
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_1",
+          "is_error": true,
+          "content": "Permission denied: write access to /etc/app/config.yml was denied by user settings."
+        }
+      ]
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Permission was denied for that file, so I cannot continue with the requested change. Stopping here."
+        }
+      ]
+    }
+  },
+  { "type": "result", "subtype": "error", "result": "Stopped: permission denied.", "is_error": true }
+]

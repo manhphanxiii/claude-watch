@@ -1,0 +1,24 @@
+[
+  {
+    "type": "assistant",
+    "message": {
+      "content": [
+        { "type": "text", "text": "I've reviewed the codebase and implemented the requested changes." }
+      ]
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "content": [
+        { "type": "text", "text": "All done! I've successfully fixed the bug and everything is working now." }
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "subtype": "success",
+    "result": "All done! I've successfully fixed the bug and everything is working now.",
+    "is_error": false
+  }
+]

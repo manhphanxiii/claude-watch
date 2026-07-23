@@ -1,0 +1,46 @@
+[
+  {
+    "type": "assistant",
+    "message": {
+      "content": [
+        { "type": "text", "text": "Let's fix the bug in the parser." },
+        { "type": "tool_use", "name": "Edit", "input": { "file_path": "src/parser.ts" } }
+      ]
+    }
+  },
+  {
+    "type": "user",
+    "message": {
+      "content": [
+        { "type": "tool_result", "tool_use_id": "toolu_1", "content": "Applied edit to src/parser.ts (12 lines changed)." }
+      ]
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "content": [
+        { "type": "text", "text": "Let's run the tests to confirm." },
+        { "type": "tool_use", "name": "Bash", "input": { "command": "npm test" } }
+      ]
+    }
+  },
+  {
+    "type": "user",
+    "message": {
+      "content": [{ "type": "tool_result", "tool_use_id": "toolu_2", "content": "All 40 tests passed." }]
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "content": [{ "type": "text", "text": "Successfully fixed the bug and all tests pass now." }]
+    }
+  },
+  {
+    "type": "result",
+    "subtype": "success",
+    "result": "Successfully fixed the bug and all tests pass now.",
+    "is_error": false
+  }
+]
