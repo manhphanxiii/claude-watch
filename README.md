@@ -4,6 +4,8 @@ A reliability supervisor for **unattended** Claude Code / Claude Agent SDK runs 
 
 Free. MIT-licensed. No account, no server, no database, no dashboard — a single process that spawns your command, watches it, and exits.
 
+If Claude Code is hanging in CI, stalling in a cron job, or silently claiming success without doing the work, see [**Claude Code Hangs in CI or Cron? Here's Why, and How to Catch It Automatically**](./docs/claude-code-hangs-in-ci-cron.md) for a symptom-by-symptom walkthrough (idle timeout, wall-clock timeout, silent permission denial, false completion claims) with copy-pasteable fixes for GitHub Actions and cron.
+
 ## Why this exists
 
 When Claude Code runs with nobody watching, three things can go wrong and nothing tells you:
