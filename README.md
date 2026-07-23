@@ -36,6 +36,64 @@ cd claude-watch
 npm install && npm run build && npm link
 ```
 
+## GitHub Action
+
+If your headless run already lives in a GitHub Actions workflow, use the bundled
+action instead of hand-rolling the `npx` invocation — it's a thin wrapper around
+the same CLI, same flags, same exit codes:
+
+```yaml
+name: nightly-agent-run
+on:
+  schedule:
+    - cron: '0 3 * * *'
+
+jobs:
+  run-claude:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: manhphanxiii/claude-watch@v0.1.0
+        id: claude-watch
+        with:
+          command: claude -p "review the open PRs and merge anything that's green" --output-format stream-json
+          idle-timeout: 5m
+          max-duration: 1h
+          transcript-format: stream-json
+          webhook: ${{ secrets.CLAUDE_WATCH_WEBHOOK }}
+          slack-webhook: ${{ secrets.CLAUDE_WATCH_SLACK_WEBHOOK }}
+
+      - name: Report result
+        if: always()
+        run: |
+          echo "exit code: ${{ steps.claude-watch.outputs.exit-code }}"
+          echo "reason:    ${{ steps.claude-watch.outputs.reason }}"
+```
+
+Inputs map 1:1 to the `run` subcommand's flags (`idle-timeout`, `max-duration`,
+`grace-period`, `webhook`, `slack-webhook`, `transcript-format`, `detectors`,
+`no-detectors`, `quiet`) — see `action.yml` for the full list and defaults. The
+step fails with claude-watch's own exit code on any trip (idle-timeout,
+max-duration, permission-denial, false-completion, or the wrapped command's own
+non-zero code passed through), so no extra `if: failure()` plumbing is needed
+to make a bad run show up red. Outputs (`exit-code`, `ok`, `reason`, `detail`)
+are also available for workflows that want to branch on the result instead of
+just failing the job.
+
+Two things worth knowing before you use it:
+
+- The action builds claude-watch from source on every run (`npm ci`, which
+  triggers the same `tsc` build the CLI itself uses) rather than shipping a
+  prebuilt `dist/` in the tag — `dist/` is gitignored in this repo, matching
+  the source-of-truth-is-source convention used everywhere else here. Expect
+  a few seconds of build overhead per run, not a cold `npm install` of a large
+  dependency tree (the only runtime dependency is `cross-spawn`).
+- It calls `actions/setup-node` internally, which changes the active Node
+  version for the rest of the *job*, not just this step. If your job has its
+  own steps that need a specific Node version, either run them before this
+  action or pin the action's `node-version` input to match.
+
 ## Usage
 
 ```

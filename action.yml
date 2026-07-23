@@ -1,0 +1,170 @@
+name: 'claude-watch'
+description: >-
+  Reliability supervisor for headless Claude Code / Claude Agent SDK runs.
+  Wraps a step's command, kills it on a stall/hang, detects two silent-failure
+  patterns (permission denial ignored, false completion claims), and can fire
+  a webhook or Slack alert on failure. A thin wrapper around the claude-watch
+  CLI — see https://github.com/manhphanxiii/claude-watch for the underlying
+  tool this action drives.
+author: 'manhphanxiii'
+branding:
+  icon: 'activity'
+  color: 'purple'
+
+inputs:
+  command:
+    description: >-
+      The command to supervise, written exactly as you'd type it after
+      `claude-watch run -- `. Typically `claude -p "..."`, but any command
+      works. Quoting is preserved (this is spliced into the step's shell
+      script, not passed through an intermediate variable), so use normal
+      shell quoting for arguments containing spaces.
+    required: true
+  idle-timeout:
+    description: >-
+      Kill the command if its stdout goes silent for this long (e.g. 5m,
+      30s). Off by default, matching the CLI's own default.
+    required: false
+    default: ''
+  max-duration:
+    description: >-
+      Hard wall-clock ceiling for the whole run (e.g. 1h), independent of
+      the idle timer. Off by default, matching the CLI's own default.
+    required: false
+    default: ''
+  grace-period:
+    description: >-
+      Wait this long after SIGTERM before escalating to SIGKILL. Leave blank
+      to use the CLI's own default (10s).
+    required: false
+    default: ''
+  webhook:
+    description: >-
+      POST a JSON payload here on any detected failure. Pass this via
+      `secrets.*`, not a literal URL in the workflow file.
+    required: false
+    default: ''
+  slack-webhook:
+    description: >-
+      POST a Slack-formatted message here (Slack incoming webhook URL) on
+      any detected failure. Pass this via `secrets.*`.
+    required: false
+    default: ''
+  transcript-format:
+    description: >-
+      "text" (default: silent-failure detectors are a documented no-op,
+      timeout enforcement still fully applies) or "stream-json" (pass
+      claude's own --output-format stream-json through to enable the
+      permission-denial and false-completion detectors). Leave blank to use
+      the CLI's own default ("text").
+    required: false
+    default: ''
+  detectors:
+    description: >-
+      Comma-separated detector ids to run (permission-denial,
+      false-completion). Leave blank to run all of them.
+    required: false
+    default: ''
+  no-detectors:
+    description: >-
+      Set to "true" to disable silent-failure detection entirely. Timeout
+      enforcement is unaffected.
+    required: false
+    default: 'false'
+  quiet:
+    description: >-
+      Set to "true" to suppress echoing the wrapped command's stdout/stderr
+      into the job log.
+    required: false
+    default: 'false'
+  node-version:
+    description: >-
+      Node version used to build and run claude-watch itself (the tool
+      requires Node >=18). NOTE: this action calls actions/setup-node
+      internally, which changes the active Node version for the rest of
+      the job, not just this step. If your job's own steps need a specific
+      Node version, place them before this action or pin this input to match.
+    required: false
+    default: '20'
+
+outputs:
+  exit-code:
+    description: >-
+      The exit code claude-watch produced: 0 clean, 1 idle-timeout,
+      2 max-duration, 3 permission-denial, 4 false-completion, or the
+      wrapped command's own non-zero exit code passed through unchanged.
+      This is also the action step's own exit code, so a failure here
+      fails the job by default without reading this output.
+    value: ${{ steps.run.outputs.exit-code }}
+  ok:
+    description: '"true" if claude-watch exited 0 (clean), "false" otherwise.'
+    value: ${{ steps.run.outputs.ok }}
+  reason:
+    description: >-
+      Machine-readable failure reason, or empty on a clean run
+      (idle-timeout, max-duration, permission-denial, false-completion,
+      child-exit-nonzero).
+    value: ${{ steps.run.outputs.reason }}
+  detail:
+    description: 'Human-readable detail string for the failure reason, or empty on a clean run.'
+    value: ${{ steps.run.outputs.detail }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node.js for claude-watch
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Build claude-watch
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci
+
+    - name: Run supervised command
+      id: run
+      shell: bash
+      env:
+        CW_IDLE_TIMEOUT: ${{ inputs.idle-timeout }}
+        CW_MAX_DURATION: ${{ inputs.max-duration }}
+        CW_GRACE_PERIOD: ${{ inputs.grace-period }}
+        CW_WEBHOOK: ${{ inputs.webhook }}
+        CW_SLACK_WEBHOOK: ${{ inputs.slack-webhook }}
+        CW_TRANSCRIPT_FORMAT: ${{ inputs.transcript-format }}
+        CW_DETECTORS: ${{ inputs.detectors }}
+        CW_NO_DETECTORS: ${{ inputs.no-detectors }}
+        CW_QUIET: ${{ inputs.quiet }}
+      run: |
+        ARGS=()
+        [ -n "$CW_IDLE_TIMEOUT" ] && ARGS+=(--idle-timeout "$CW_IDLE_TIMEOUT")
+        [ -n "$CW_MAX_DURATION" ] && ARGS+=(--max-duration "$CW_MAX_DURATION")
+        [ -n "$CW_GRACE_PERIOD" ] && ARGS+=(--grace-period "$CW_GRACE_PERIOD")
+        [ -n "$CW_WEBHOOK" ] && ARGS+=(--webhook "$CW_WEBHOOK")
+        [ -n "$CW_SLACK_WEBHOOK" ] && ARGS+=(--slack-webhook "$CW_SLACK_WEBHOOK")
+        [ -n "$CW_TRANSCRIPT_FORMAT" ] && ARGS+=(--transcript-format "$CW_TRANSCRIPT_FORMAT")
+        [ -n "$CW_DETECTORS" ] && ARGS+=(--detectors "$CW_DETECTORS")
+        [ "$CW_NO_DETECTORS" = "true" ] && ARGS+=(--no-detectors)
+        [ "$CW_QUIET" = "true" ] && ARGS+=(--quiet)
+        ARGS+=(--json)
+
+        set +e
+        node "${{ github.action_path }}/dist/cli.js" run "${ARGS[@]}" -- ${{ inputs.command }} \
+          | tee "$RUNNER_TEMP/claude-watch-result.log"
+        CW_EXIT=${PIPESTATUS[0]}
+        set -e
+
+        node -e '
+          const fs = require("fs");
+          const lines = fs.readFileSync(process.argv[1], "utf8").trim().split("\n");
+          const last = lines[lines.length - 1] || "{}";
+          let parsed;
+          try { parsed = JSON.parse(last); } catch { parsed = {}; }
+          const out = fs.openSync(process.env.GITHUB_OUTPUT, "a");
+          fs.writeSync(out, `ok=${parsed.ok === true}\n`);
+          fs.writeSync(out, `reason=${parsed.reason ?? ""}\n`);
+          fs.writeSync(out, `detail=${(parsed.detail ?? "").toString().replace(/\n/g, " ")}\n`);
+        ' "$RUNNER_TEMP/claude-watch-result.log"
+        echo "exit-code=$CW_EXIT" >> "$GITHUB_OUTPUT"
+
+        exit $CW_EXIT
