@@ -54,7 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: manhphanxiii/claude-watch@v0.1.0
+      - uses: manhphanxiii/claude-watch@v0.1.1
         id: claude-watch
         with:
           command: claude -p "review the open PRs and merge anything that's green" --output-format stream-json
