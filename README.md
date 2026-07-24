@@ -176,6 +176,14 @@ Per the CEO decision behind this build: **no dashboard, no fleet view, no TUI, n
 - Structured-output/JSON-schema validation of the wrapped command's own output.
 - Retry/backoff logic — `claude-watch` observes and alerts, it does not automatically retry your command for you.
 
+## Related
+
+If what worries you isn't an unattended run hanging but an *interactive*
+session quietly running up a bigger bill than you expected, that's a
+different tool: [`spendsentry`](https://github.com/manhphanxiii/spendsentry)
+reads the same local Claude Code logs and warns you before a live session
+crosses a token-spend threshold you set.
+
 ## Status
 
 This is a young, thin v1. It is dogfooded in Auto Company's own cron/Routine cycles before any external-facing claim is made about it working — internal use proves the tool functions, it does not by itself prove anyone else needs it. Bug reports and detector-accuracy feedback (false positives *or* false negatives) are the most useful thing you can send.
