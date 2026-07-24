@@ -16,9 +16,16 @@ inputs:
     description: >-
       The command to supervise, written exactly as you'd type it after
       `claude-watch run -- `. Typically `claude -p "..."`, but any command
-      works. Quoting is preserved (this is spliced into the step's shell
-      script, not passed through an intermediate variable), so use normal
-      shell quoting for arguments containing spaces.
+      works. Quoting is preserved (this is spliced UNQUOTED into the step's
+      shell `run:` script, not passed through an escaped intermediate
+      variable), so use normal shell quoting for arguments containing
+      spaces. SECURITY: because of that same splicing, never build this
+      from untrusted GitHub-context values (PR titles/bodies, branch names,
+      issue titles, commit messages, etc.) without sanitizing them first —
+      it is the standard GitHub Actions script-injection risk class
+      (https://securitylab.github.com/resources/github-actions-untrusted-input/).
+      Pass untrusted input through an `env:` variable and read `$THE_VAR`
+      from a script/prompt file instead of interpolating it directly here.
     required: true
   idle-timeout:
     description: >-
@@ -148,6 +155,14 @@ runs:
         [ "$CW_QUIET" = "true" ] && ARGS+=(--quiet)
         ARGS+=(--json)
 
+        # SECURITY: `inputs.command` is intentionally interpolated unquoted
+        # below (so callers' own shell quoting, e.g. `claude -p "..."`,
+        # keeps working) — do not "fix" this by wrapping it in quotes
+        # without also reconsidering the caveat in the `command` input's
+        # description. Callers must never build `command` from untrusted
+        # GitHub-context values (PR title/body, branch name, etc.); that is
+        # standard GitHub Actions script-injection surface, not specific to
+        # this action, but worth restating at the exact splice point.
         set +e
         node "${{ github.action_path }}/dist/cli.js" run "${ARGS[@]}" -- ${{ inputs.command }} \
           | tee "$RUNNER_TEMP/claude-watch-result.log"

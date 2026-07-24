@@ -81,7 +81,7 @@ to make a bad run show up red. Outputs (`exit-code`, `ok`, `reason`, `detail`)
 are also available for workflows that want to branch on the result instead of
 just failing the job.
 
-Two things worth knowing before you use it:
+Three things worth knowing before you use it:
 
 - The action builds claude-watch from source on every run (`npm ci`, which
   triggers the same `tsc` build the CLI itself uses) rather than shipping a
@@ -93,6 +93,20 @@ Two things worth knowing before you use it:
   version for the rest of the *job*, not just this step. If your job has its
   own steps that need a specific Node version, either run them before this
   action or pin the action's `node-version` input to match.
+- **`command` is spliced unquoted into the step's shell script by design**
+  (so your normal shell quoting for `claude -p "..."` arguments keeps
+  working) — it is **not** passed through an escaped/quoted intermediate
+  variable. That means it is exec'd verbatim, same as any other `run:`
+  step. Never build it from untrusted GitHub-context values — PR titles,
+  PR bodies, branch names, issue titles, commit messages, or anything else
+  an external contributor can influence — without sanitizing them first.
+  This is the standard [GitHub Actions script-injection risk
+  class](https://securitylab.github.com/resources/github-actions-untrusted-input/):
+  `command: claude -p "review PR ${{ github.event.pull_request.title }}"`
+  lets a malicious PR title break out of the string and run arbitrary
+  shell in your job. If you need to act on untrusted input, pass it through
+  an `env:` variable and reference `$THE_VAR` from inside a script/prompt
+  file instead of interpolating it directly into `command`.
 
 ## Usage
 
@@ -163,6 +177,7 @@ They only run in `--transcript-format stream-json` mode, i.e. when you pass `cla
 
 - **`permission-denial`** (v1) — trips when a `tool_result` block matches a denial pattern ("permission denied," "not allowed to," "blocked by permission," etc.) **and** execution continues afterward with further `tool_use` calls, **and** nothing in the rest of the transcript surfaces that as an error or acknowledges it to the user. A denial that stops the run, or that gets explicitly surfaced, is not a silent failure and does not trip.
 - **`false-completion`** (v1) — trips when the final assistant-visible text claims completion/success ("done," "successfully fixed," "all set," etc.) **and** the transcript contains zero `tool_use` blocks anywhere. This is deliberately the narrowest, highest-confidence slice of "false completion": it does not attempt to semantically match a specific claim to a specific diff (that needs a real correlation engine — noted below as future work), only that *some* tool evidence exists at all when completion is claimed.
+  **When to turn it off:** it cannot distinguish a genuine false-completion claim from a legitimate answer-only/read-only prompt that never needed a tool call ("what does this error mean?", "summarize this file") — both produce zero `tool_use` blocks plus completion-sounding text. If your unattended runs include Q&A-style prompts alongside do-work prompts, drop `false-completion` from `--detectors` for those, or expect it to false-positive on them.
 
 Both take an optional pattern override (`patterns` to replace the defaults entirely, or `extraPatterns` to add to them) — see `src/detectors/types.ts`.
 

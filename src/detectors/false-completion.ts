@@ -14,6 +14,18 @@ import { TranscriptEntry, finalText, toolUseBlocks } from "../transcript";
  * specific tool_use matches a specific claim (that needs a real diff/tool
  * correlation engine, flagged as future work in the README), only that
  * *some* tool evidence exists at all when completion is claimed.
+ *
+ * OPERATIONAL CAVEAT — when to turn this off: this detector cannot tell
+ * "false completion" apart from a legitimate answer-only / read-only prompt
+ * that never needed a tool_use in the first place (e.g. "what does this
+ * error mean?", "summarize this file's purpose", any Q&A-style prompt
+ * answered from context already in the transcript). Both look identical to
+ * this heuristic: zero tool_use blocks plus completion-sounding trailing
+ * text. If your workflow includes Q&A/read-only prompts alongside
+ * do-work prompts, either disable this detector for those runs
+ * (`--detectors permission-denial` / omit `false-completion` from the
+ * `--detectors` list) or expect — and don't act alarmed by — false
+ * positives on them.
  */
 
 const DEFAULT_COMPLETION_PATTERNS = [
