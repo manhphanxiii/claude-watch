@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import * as path from "path";
 import { runSupervised } from "../runner";
+
+const FIXTURES = path.join(__dirname, "..", "..", "fixtures");
 
 // These exercise the real process-wrapper path against `sh -c '...'` fixtures —
 // per the task's self-verification note, we don't need a real `claude -p` call
@@ -73,4 +76,28 @@ test("stream-json transcript mode trips the false-completion detector on a real 
   });
   assert.equal(result.reason, "false-completion");
   assert.equal(result.exitCode, 4);
+});
+
+// Regression test for a shipped bug: permission-denial.ts returned a reason
+// string ("permission-denial-without-error") that didn't match the
+// FailureReason union, so exitCodeForReason() silently fell through and the
+// process exited 0 on a genuine permission-denial trip, even though stderr
+// and --json both reported failure. A unit-level test on the detector alone
+// (asserting `.tripped`) can't catch this — it has to go through the real
+// runner/exit-code plumbing against the real fixture, per the documented
+// exit code contract (README: 3 = permission-denial).
+test("permission-denial fixture trips through the real runner with the documented exit code 3", async () => {
+  const fixturePath = path.join(FIXTURES, "permission-denial-trip.json");
+  const result = await runSupervised({
+    command: [
+      "node",
+      "-e",
+      `require(${JSON.stringify(fixturePath)}).forEach((e) => console.log(JSON.stringify(e)));`,
+    ],
+    gracePeriodMs: 200,
+    transcriptFormat: "stream-json",
+    detectorIds: ["permission-denial"],
+  });
+  assert.equal(result.reason, "permission-denial");
+  assert.equal(result.exitCode, 3);
 });

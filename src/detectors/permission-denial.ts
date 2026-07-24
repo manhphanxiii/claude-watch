@@ -79,14 +79,14 @@ export const permissionDenialDetector: Detector = {
     }
 
     if (denialIndex === -1) {
-      return { tripped: false, reason: "permission-denial-without-error", detail: "No permission-denial pattern found in tool_result blocks." };
+      return { tripped: false, reason: "permission-denial", detail: "No permission-denial pattern found in tool_result blocks." };
     }
 
     const continuedExecution = blocks.slice(denialIndex + 1).some((b) => b.type === "tool_use");
     if (!continuedExecution) {
       return {
         tripped: false,
-        reason: "permission-denial-without-error",
+        reason: "permission-denial",
         detail: "Permission denial found, but no further tool_use followed — the run stopped, which is the expected behavior.",
       };
     }
@@ -104,14 +104,14 @@ export const permissionDenialDetector: Detector = {
     if (hasResultError || acknowledged) {
       return {
         tripped: false,
-        reason: "permission-denial-without-error",
+        reason: "permission-denial",
         detail: "Permission denial found, but the run surfaced it as an error/acknowledgement to the user.",
       };
     }
 
     return {
       tripped: true,
-      reason: "permission-denial-without-error",
+      reason: "permission-denial",
       detail:
         "A tool permission was denied and execution continued afterward with no surfaced error or acknowledgement — the run may look successful while having silently skipped work.",
     };

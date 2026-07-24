@@ -34,5 +34,20 @@ export function exitCodeForReason(reason: FailureReason): number {
       return EXIT_FALSE_COMPLETION;
     case "child-exit-nonzero":
       return EXIT_CHILD_FAILED;
+    default: {
+      // Defense in depth: callers (e.g. runner.ts) cast detector-supplied
+      // reason strings to `FailureReason` with `as`, which the compiler
+      // cannot verify at build time. If a detector's `reason` string ever
+      // drifts from this union again (exactly the bug that shipped once
+      // already — permission-denial returned "permission-denial-without-error"
+      // instead of "permission-denial"), fail loudly here instead of
+      // silently falling through to an undefined exit code (which Node
+      // reports to the shell as 0).
+      const unrecognized: string = reason;
+      throw new Error(
+        `claude-watch: exitCodeForReason() received unrecognized failure reason "${unrecognized}". ` +
+          `This is a bug in claude-watch itself (a detector's reason string doesn't match the FailureReason type), not in your wrapped command.`
+      );
+    }
   }
 }
