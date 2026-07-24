@@ -72,3 +72,30 @@ test("postSlackWebhook POSTs a Slack-formatted text payload", async () => {
 test("postWebhook does not throw when the endpoint is unreachable", async () => {
   await assert.doesNotReject(postWebhook("http://127.0.0.1:1/nope", samplePayload));
 });
+
+// Regression test for a shipped bug: postJson() called bare fetch() with no
+// timeout. An endpoint that accepts the TCP connection but never sends a
+// response (unlike ECONNREFUSED above, which fails fast) would hang the
+// await indefinitely — and with it cli.ts's `sendAlerts()`, and the whole
+// claude-watch process, past its own configured idle/max-duration settings.
+test("postWebhook resolves within a bounded time against a hanging (non-responding) endpoint", async () => {
+  const server = http.createServer((_req, _res) => {
+    // Deliberately never call res.end() / res.writeHead() — simulates a
+    // server that accepted the connection but never responds.
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : 0;
+  const url = `http://127.0.0.1:${port}`;
+
+  try {
+    const startedAt = Date.now();
+    // Use a short override timeout so the test doesn't have to wait out the
+    // real 5s production default to prove the timeout mechanism works.
+    await assert.doesNotReject(postWebhook(url, samplePayload, 300));
+    const elapsedMs = Date.now() - startedAt;
+    assert.ok(elapsedMs < 2000, `expected the timeout to bound the call, took ${elapsedMs}ms`);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
